@@ -26,13 +26,13 @@ class CookiesForm(StatesGroup):
     waiting_secrets = State()
 
 # ================== MAIN KEYBOARD ==================
-# এই বাটনটি এখন কিবোর্ডের উপরে বড় হয়ে থাকবে
 def main_keyboard():
-    button = KeyboardButton(text="Instagram Cookies 🍪 বাহির করুন")
+    # এখানে বাটনটি কিবোর্ডের উপরে সুন্দর করে বসে থাকবে
+    button = KeyboardButton(text="🍪 Cookies বাহির করুন")
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[button]],
-        resize_keyboard=True, # বাটনটি সাইজে ছোট এবং সুন্দর দেখাবে
-        one_time_keyboard=False # বাটনটি সব সময় কিবোর্ডে থাকবে
+        resize_keyboard=True,
+        one_time_keyboard=False
     )
     return keyboard
 
@@ -42,28 +42,27 @@ async def welcome_message(message: types.Message):
     text = f"""
 ⚡ 「 𝙳𝚎𝚟𝚎𝚕𝚘𝚙𝚖𝚎𝚗𝚝 𝙱𝚢 𝚂𝚑𝚒𝚙𝚘𝚗 」 ⚡
 ━━━━━━━━━━━━━━━━━━━━
-👋 আরে {first_name} ভাই নাকি! 
-আমি জানতাম তুমি কোপ দিতে আসবে 😁
+👋 আরে {first_name} ভাই! 
+নিচের বাটনে ক্লিক করে কাজ শুরু করেন।
 
-━━━━━━━━━━━━━━━━━━━━
 📢 💠【 <a href="https://t.me/Income_Page_Marketing">𝙸𝚗𝚌𝚘𝚖𝚎 𝙿𝚊𝚐𝚎 𝙼𝚊𝚛𝚔𝚎𝚝𝚒𝚗𝚐</a> 】💠
 ━━━━━━━━━━━━━━━━━━━━
 """
+    # বাটনটি এখানে পাঠিয়ে দেওয়া হচ্ছে
     await message.answer(text, parse_mode="HTML", reply_markup=main_keyboard(), disable_web_page_preview=True)
 
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     await welcome_message(message)
 
-# ================== START COOKIES PROCESS (TEXT HANDLER) ==================
-# এখন ইনলাইন বাটন না, সরাসরি টেক্সট বাটন থেকে কাজ করবে
-@dp.message(F.text == "Instagram Cookies 🍪 বাহির করুন")
+# ================== START PROCESS (TEXT HANDLER) ==================
+@dp.message(F.text == "🍪 Cookies বাহির করুন")
 async def start_cookies(message: types.Message, state: FSMContext):
     await state.set_state(CookiesForm.waiting_usernames)
     await message.answer(
         "👤 <b>ইউজারনেম লিস্ট দেন</b>\n(প্রতি লাইনে একটা করে, সর্বোচ্চ ২০টা)",
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove() # কাজ চলাকালীন কিবোর্ড সরিয়ে ফেলবে
+        reply_markup=ReplyKeyboardRemove() # কাজ শুরু হলে কিবোর্ড সরিয়ে ফেলবে
     )
 
 # ================== USERNAME & PASSWORD HANDLERS ==================
@@ -92,10 +91,11 @@ async def get_secrets(message: types.Message, state: FSMContext):
     secrets = [line.strip().replace(" ", "") for line in message.text.splitlines() if line.strip()]
     if len(secrets) != len(data.get("usernames", [])):
         return await message.reply("❌ 2FA Secret Key ঠিক ততগুলোই দিন।")
-    await message.reply(f"🤖 Cookies বাহির করা হচ্ছে... {len(data['usernames'])}টা অ্যাকাউন্ট", reply_markup=main_keyboard()) # কিবোর্ড আবার আনবে
+    
+    await message.answer("🤖 Cookies বাহির করা হচ্ছে...", reply_markup=main_keyboard())
     await process_all_accounts(message, data, secrets, state)
 
-# ================== UPDATED LOGIN LOGIC ==================
+# ================== LOGIN LOGIC (YOUR ORIGINAL LOGIC) ==================
 async def process_all_accounts(message: types.Message, data, secrets, state: FSMContext):
     usernames = data["usernames"]
     passwords = data["passwords"]
@@ -106,6 +106,47 @@ async def process_all_accounts(message: types.Message, data, secrets, state: FSM
         username = usernames[i]
         await message.reply(f"🔄 প্রসেস করা হচ্ছে → {username} ({i+1}/{len(usernames)})")
 
+        try:
+            cl = Client()
+            cl.set_device_settings({
+                "app_version": "269.0.0.18.75",
+                "android_release": "12",
+                "android_version": "31",
+                "model": "SM-S901B",
+                "manufacturer": "samsung"
+            })
+            
+            totp = pyotp.TOTP(secrets[i])
+            verification_code = totp.now()
+
+            cl.login(username, passwords[i], verification_code=verification_code)
+
+            cookies_dict = cl.get_cookie_dict()
+            cookie_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
+            result = f"{username}|{passwords[i]}|{cookie_str}"
+            
+            # রেজাল্ট পাঠাবে এক ক্লিকে কপি করার ফর্মেটে
+            await message.reply(f"<code>{result}</code>", parse_mode="HTML")
+            success_count += 1
+
+        except Exception as e:
+            failed_count += 1
+            error_msg = str(e)
+            if "We can't find an account" in error_msg:
+                error_msg = "Account Not Found! (বট আইপি ব্লক হতে পারে)"
+            await message.reply(f"❌ Failed → {username}\nError: {error_msg[:100]}")
+
+        await asyncio.sleep(8) 
+
+    await message.reply(f"🏁 <b>Work Complete!</b>\n\n✅ SUCCESS: <b>{success_count}</b>\n❌ FAILED: <b>{failed_count}</b>", parse_mode="HTML")
+    await state.clear()
+
+async def main():
+    print("🚀 Bot is running with Simple Keyboard!")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
         try:
             cl = Client()
             # ইন্সটাগ্রামের ডিটেকশন এড়াতে ফেইক ডিভাইস সেটআপ
