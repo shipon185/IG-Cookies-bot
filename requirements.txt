@@ -1,3 +1,5 @@
 aiogram==3.13.0
 instagrapi
 pyotp
+pydantic<2.11
+pydantic-core<2.28
