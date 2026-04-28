@@ -1,3 +1,5 @@
+# File Name: Insta_cookies_bot.py
+
 import asyncio
 import logging
 import os
@@ -57,7 +59,8 @@ async def start_handler(message: types.Message):
 async def start_cookies(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(CookiesForm.waiting_usernames)
     await callback.message.edit_text(
-        "👤 ইউজারনেম লিস্ট দেন\n(প্রতি লাইনে একটা করে, সর্বোচ্চ ২০টা)"
+        "👤 <b>ইউজারনেম লিস্ট দেন</b>\n(প্রতি লাইনে একটা করে, সর্বোচ্চ ২০টা)",
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -72,7 +75,7 @@ async def get_usernames(message: types.Message, state: FSMContext):
     await state.update_data(usernames=usernames)
     await state.set_state(CookiesForm.waiting_passwords)
     
-    await message.reply(f"✅ {len(usernames)}টা ইউজারনেম নেওয়া হয়েছে।\n\n🔑 এখন সবগুলো অ্যাকাউন্টের পাসওয়ার্ড দিন (একই অর্ডারে, প্রতি লাইনে একটা)")
+    await message.reply(f"✅ {len(usernames)}টা ইউজারনেম নেওয়া হয়েছে।\n\n🔑 এখন সবগুলো অ্যাকাউন্টের <b>পাসওয়ার্ড</b> দিন (একই অর্ডারে, প্রতি লাইনে একটা)", parse_mode="HTML")
 
 # ================== PASSWORD HANDLER ==================
 @dp.message(CookiesForm.waiting_passwords)
@@ -86,7 +89,7 @@ async def get_passwords(message: types.Message, state: FSMContext):
     await state.update_data(passwords=passwords)
     await state.set_state(CookiesForm.waiting_secrets)
     
-    await message.reply("🔐 এখন সবগুলো অ্যাকাউন্টের **2FA Secret Key** দিন\n(প্রতি লাইনে একটা করে)")
+    await message.reply("🔐 এখন সবগুলো অ্যাকাউন্টের <b>2FA Secret Key</b> দিন\n(প্রতি লাইনে একটা করে)", parse_mode="HTML")
 
 # ================== 2FA SECRET HANDLER ==================
 @dp.message(CookiesForm.waiting_secrets)
@@ -117,33 +120,38 @@ async def process_all_accounts(message: types.Message, data, secrets, state: FSM
             totp = pyotp.TOTP(secrets[i])
             verification_code = totp.now()
 
+            # ইনস্টাগ্রামে লগইন
             cl.login(username, passwords[i], verification_code=verification_code)
 
+            # কুকিজ বের করা
             cookies_dict = cl.get_cookie_dict()
             cookie_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
 
             result = f"{username}|{passwords[i]}|{cookie_str}"
             
-            # Mono space এ দেখানোর জন্য
-            await message.reply(f"```{result}```", parse_mode="MarkdownV2")
+            # Mono space এ দেখানোর জন্য HTML ট্যাগ ব্যবহার করা হলো (যাতে এরর না আসে)
+            await message.reply(f"<code>{result}</code>", parse_mode="HTML")
             success_count += 1
 
         except Exception as e:
             failed_count += 1
             await message.reply(f"❌ Failed → {username}\nError: {str(e)[:250]}")
 
-        await asyncio.sleep(10)  # Instagram block এড়ানোর জন্য
+        # Instagram block এড়ানোর জন্য ১০ সেকেন্ডের বিরতি
+        await asyncio.sleep(10)  
 
     # Final Summary
-    await message.reply(f"""
-🏁 **Work Complete!**
+    final_text = f"""
+🏁 <b>Work Complete!</b>
 
-✅ SUCCESS: **{success_count}**
-❌ FAILED: **{failed_count}**
+✅ SUCCESS: <b>{success_count}</b>
+❌ FAILED: <b>{failed_count}</b>
 
 📊 Total Accounts: {len(usernames)}
-""", parse_mode="Markdown")
+"""
+    await message.reply(final_text, parse_mode="HTML")
 
+    # কাজ শেষে ইউজারের ডাটা ক্লিয়ার করে দেওয়া
     await state.clear()
 
 # ================== OWNER COMMANDS ==================
@@ -151,19 +159,19 @@ async def process_all_accounts(message: types.Message, data, secrets, state: FSM
 async def bot_status(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return await message.reply("❌ এই কমান্ড শুধু Owner-এর জন্য।")
-    await message.reply("✅ **Bot চালু আছে**\n\n• বন্ধ করতে Render Dashboard থেকে **Suspend** করুন\n• চালু করতে **Resume** করুন")
+    await message.reply("✅ <b>Bot চালু আছে</b>\n\n• বন্ধ করতে Render Dashboard থেকে <b>Suspend</b> করুন\n• চালু করতে <b>Resume</b> করুন", parse_mode="HTML")
 
 @dp.message(Command("stopbot"))
 async def stop_bot(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return await message.reply("❌ এই কমান্ড শুধু Owner-এর জন্য।")
     
-    await message.reply("🛑 Bot polling বন্ধ করা হচ্ছে...\n\nপুরোপুরি বন্ধ করতে Render Dashboard থেকে **Suspend** করুন।")
+    await message.reply("🛑 Bot polling বন্ধ করা হচ্ছে...\n\nপুরোপুরি বন্ধ করতে Render Dashboard থেকে <b>Suspend</b> করুন।", parse_mode="HTML")
     await dp.stop_polling()
 
 # ================== RUN THE BOT ==================
 async def main():
-    print("🚀 Instagram Cookies Bot Started on Render.com")
+    print("🚀 Instagram Cookies Bot Started...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
